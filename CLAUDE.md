@@ -6,27 +6,36 @@ Instance Grist cible : grist.numerique.gouv.fr. Interface et commentaires en fra
 
 ## Fichiers
 - `index.html` — le widget.
-- `Statuts.csv` — table d'exemple des statuts : `Nom`, `Ordre`, `Couleur` (#hex), `Limite` (nb max de cartes, vide = illimité).
-- `Taches.csv` — table d'exemple des tâches : `Titre`, `Statut` (Référence → Statuts), `Description`, `Echeance` (Date),
-  `Priorite` (Choix), `Etiquettes` (Choix multiple), `Notes`, `Ordre` (Numérique).
+- `Etapes.csv`, `Taches.csv` — données d'exemple conformes au schéma ci-dessous.
+
+## Schéma Grist recommandé (identifiants sans accents ; libellés libres)
+Table `Taches` : `Titre` (Texte, requis), `Etape` (Référence → `Etapes`, colonne affichée `Nom`, requis),
+`Echeance` (Date), `Priorite` (Choix, dans l'ordre `Haute`, `Moyenne`, `Basse`), `Description` (Texte),
+`Etiquettes` (Choix multiple), `Lien` (Texte, URL), `Ordre` (Numérique, tri manuel). Autres colonnes libres (ex. `Notes`).
+Table `Etapes` : `Nom` (Texte), `Ordre` (Numérique), `Couleur` (Texte #hex), `Limite` (Entier, vide/0 = illimité).
+La dernière étape (plus grand `Ordre`) = « terminé » (jamais en retard).
+Après import CSV : vérifier/convertir les types (Référence, Choix, Choix multiple, Date) dans Grist.
 
 ## Choix de conception validés avec l'utilisateur
 - Widget générique : colonnes associées dans le panneau Grist (mappings) :
-  `Titre` (requis), `Statut` (requis ; Référence vers une table de statuts, ou à défaut colonne Choix),
-  `Echeance`, `Priorite`, `Etiquettes`, `Ordre` (facultatifs), `Carte` (allowMultiple : champs affichés sur la carte ;
-  défaut = échéance, priorité, étiquettes).
-- Colonnes du board = lignes de la table Statuts, triées par `Ordre`, couleur `Couleur`, compteur rouge si `Limite` dépassée
-  (dépôt quand même autorisé). Colonnes de la table statuts détectées par nom (ordre/order, couleur/color, limite/limit),
+  `Titre` (requis), `Etape` (requis ; Référence vers une table d'étapes, ou à défaut colonne Choix),
+  `Echeance`, `Priorite`, `Etiquettes`, `Description`, `Lien`, `Ordre` (facultatifs), `Carte` (allowMultiple :
+  autres champs affichés sur la carte, en plus des emplacements fixes ; défaut = aucun).
+- Carte : en haut échéance (gauche) + badge priorité (droite ; couleur selon l'index du choix : 1er rouge, 2e orange,
+  3e vert, suivants gris) ; titre ; description (3 lignes max) ; autres champs ; en bas étiquettes + lien « 🔗 domaine »
+  (target _blank, http/https seulement, https:// ajouté si absent).
+- Colonnes du board = lignes de la table Etapes, triées par `Ordre`, couleur `Couleur`, compteur rouge si `Limite` dépassée
+  (dépôt quand même autorisé). Colonnes de la table des étapes détectées par nom (ordre/order, couleur/color, limite/limit),
   nom affiché = colonne d'affichage (visibleCol) de la référence.
-- Colonne « Sans statut » affichée seulement s'il existe des tâches sans statut valide.
-- Statuts : renommage par double-clic sur l'en-tête, ajout via « + Statut » ; suppression/réordonnancement dans Grist.
-  Table statuts relue toutes les 15 s (onRecords ne notifie pas les autres tables).
+- Colonne « Sans étape » affichée seulement s'il existe des tâches sans étape valide.
+- Étapes : renommage par double-clic sur l'en-tête, ajout via « + Étape » (barre supérieure) ; suppression/réordonnancement
+  dans Grist. Table des étapes relue toutes les 15 s (onRecords ne notifie pas les autres tables).
 - CRUD dans une fenêtre modale générée depuis les métadonnées (`_grist_Tables_column`) : le formulaire s'adapte
   aux colonnes ajoutées/supprimées dans Grist (Text, Numeric/Int, Bool, Date, DateTime, Choice, ChoiceList, Ref ;
   formules et autres types en lecture seule). Suppression avec double clic de confirmation.
 - Tri : Échéance (défaut) | Priorité (ordre des choix) | Titre | Manuel (colonne `Ordre`, pas de 10).
   Glisser-déposer dans une même colonne ⇒ passage en Manuel à partir de l'ordre affiché ; « Réinitialiser » revient
-  au tri par échéance. Entre colonnes : change le statut (et la position si mode Manuel). Mode stocké via grist.setOption('tri').
+  au tri par échéance (ne modifie pas `Ordre`). Entre colonnes : change l'étape (et la position si mode Manuel). Mode stocké via grist.setOption('tri').
 - Recherche plein texte + filtres Priorité, Étiquette, « En retard » (échéance passée, sauf dernière colonne = terminé).
 - Ordinateur uniquement (pas de glisser-déposer tactile).
 

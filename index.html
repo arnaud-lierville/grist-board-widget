@@ -104,8 +104,8 @@
     <span id="count"></span>
     <label>Tri <select id="sort"></select></label>
     <button id="reset" class="btn hidden" title="Revenir au tri automatique par échéance">Réinitialiser</button>
-    <button id="addStatus" class="btn hidden" title="Ajouter une colonne de statut">+ Statut</button>
-    <button id="refresh" class="btn" title="Recharger les statuts et les colonnes">↻</button>
+    <button id="addStatus" class="btn hidden" title="Ajouter une étape (colonne)">+ Étape</button>
+    <button id="refresh" class="btn" title="Recharger les étapes et la structure des tables">↻</button>
   </div>
   <div id="board"></div>
   <div id="msg" class="hidden"></div>
@@ -128,7 +128,7 @@
 "use strict";
 /* ============================================================
    Board pour Grist — widget personnalisé
-   Colonnes = lignes d'une table « Statuts » (Référence) ou choix d'une colonne Choix.
+   Colonnes = lignes d'une table « Etapes » (Référence) ou choix d'une colonne Choix.
    ============================================================ */
 
 const $ = id => document.getElementById(id);
@@ -144,7 +144,7 @@ const S = {
   full: {},                       // id -> ligne complète (toutes les colonnes, via fetchTable)
   statusMode: null,               // 'ref' | 'choice'
   statusTable: null, statusNameCol: null, statusOrderCol: null,
-  statuts: [],                    // [{id, name, color, limit, order}]
+  etapes: [],                    // [{id, name, color, limit, order}]
   refLabels: {},                  // tableId -> {id: label}
   sort: 'echeance',
   filters: { q: '', prio: '', tag: '', late: false },
@@ -254,10 +254,10 @@ async function loadRefLabels(refTable, visibleColRef) {
   return { t, col, labels };
 }
 
-/* ---------- Statuts ---------- */
-async function loadStatuts() {
-  const colId = S.map.Statut; const c = S.colById[colId];
-  if (!c) { S.statuts = []; return; }
+/* ---------- Étapes ---------- */
+async function loadEtapes() {
+  const colId = S.map.Etape; const c = S.colById[colId];
+  if (!c) { S.etapes = []; return; }
   if (c.type.startsWith('Ref:')) {
     S.statusMode = 'ref'; S.statusTable = c.type.slice(4);
     const { t, col } = await loadRefLabels(S.statusTable, c.visibleCol);
@@ -265,24 +265,24 @@ async function loadStatuts() {
     const find = re => Object.keys(t).find(k => re.test(k));
     const oCol = find(/^(ordre|order|position|rang)$/i), cCol = find(/^(couleur|color|colour)$/i), lCol = find(/^(limite|limit|wip|max)$/i);
     S.statusOrderCol = oCol || null;
-    S.statuts = (t.id || []).map((id, i) => ({
+    S.etapes = (t.id || []).map((id, i) => ({
       id, name: col ? String(t[col][i] ?? '') : '#' + id,
       order: oCol ? Number(t[oCol][i]) || 0 : i, color: cCol ? t[cCol][i] || '' : '', limit: lCol ? Number(t[lCol][i]) || 0 : 0,
     })).sort((a, b) => a.order - b.order || a.id - b.id);
   } else if (c.type === 'Choice') {
     S.statusMode = 'choice';
     const choices = c.opts.choices || [];
-    S.statuts = choices.map((ch, i) => ({ id: ch, name: ch, order: i, color: ((c.opts.choiceOptions || {})[ch] || {}).fillColor || '', limit: 0 }));
+    S.etapes = choices.map((ch, i) => ({ id: ch, name: ch, order: i, color: ((c.opts.choiceOptions || {})[ch] || {}).fillColor || '', limit: 0 }));
   } else {
-    S.statusMode = null; S.statuts = [];
+    S.statusMode = null; S.etapes = [];
   }
 }
 function statusOf(row) {
-  const v = row[S.map.Statut];
-  if (S.statusMode === 'ref') { const id = refId(v); return S.statuts.some(s => s.id === id) ? id : 0; }
-  return S.statuts.some(s => s.id === v) ? v : 0;
+  const v = row[S.map.Etape];
+  if (S.statusMode === 'ref') { const id = refId(v); return S.etapes.some(s => s.id === id) ? id : 0; }
+  return S.etapes.some(s => s.id === v) ? v : 0;
 }
-const doneStatus = () => S.statuts.length ? S.statuts[S.statuts.length - 1].id : null;
+const doneStatus = () => S.etapes.length ? S.etapes[S.etapes.length - 1].id : null;
 
 /* ---------- Lignes complètes ----------
    onRecords peut ne renvoyer que les colonnes associées au widget : on relit la table
@@ -378,9 +378,9 @@ function cardHtml(row) {
        + '</div>';
 }
 function columnsForBoard() {
-  const cols = S.statuts.map(s => ({ ...s }));
+  const cols = S.etapes.map(s => ({ ...s }));
   const orphan = S.rows.filter(r => statusOf(r) === 0);
-  if (orphan.length || !cols.length) cols.unshift({ id: 0, name: 'Sans statut', color: '', limit: 0, nostatus: true });
+  if (orphan.length || !cols.length) cols.unshift({ id: 0, name: 'Sans étape', color: '', limit: 0, nostatus: true });
   return cols;
 }
 function render() {
@@ -461,7 +461,7 @@ async function handleDrop(targetStatus, index) {
   const actions = [];
   const upd = {};           // id -> fields
 
-  if (!sameCol) upd[row.id] = { [S.map.Statut]: statusValue(targetStatus) };
+  if (!sameCol) upd[row.id] = { [S.map.Etape]: statusValue(targetStatus) };
 
   const needOrder = sameCol || S.sort === 'manuel';
   if (needOrder) {
@@ -491,7 +491,7 @@ async function handleDrop(targetStatus, index) {
   if (!ids.length) return;
   // Mise à jour optimiste
   ids.forEach(id => { const r = S.rows.find(x => x.id === id); if (r) Object.assign(r, upd[id]); });
-  if (S.statusMode === 'ref' && S.map.Statut && upd[row.id] && upd[row.id][S.map.Statut] !== undefined) row[S.map.Statut] = upd[row.id][S.map.Statut];
+  if (S.statusMode === 'ref' && S.map.Etape && upd[row.id] && upd[row.id][S.map.Etape] !== undefined) row[S.map.Etape] = upd[row.id][S.map.Etape];
   render();
   ids.forEach(id => actions.push(['UpdateRecord', S.tableId, id, upd[id]]));
   await act(actions);
@@ -533,7 +533,7 @@ function bindBoard() {
   });
 }
 
-/* ---------- Statuts : ajout / renommage ---------- */
+/* ---------- Étapes : ajout / renommage ---------- */
 function inlineEdit(el, initial, onCommit) {
   el.contentEditable = 'true'; el.textContent = initial; el.focus();
   const range = document.createRange(); range.selectNodeContents(el); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(range);
@@ -543,8 +543,8 @@ function inlineEdit(el, initial, onCommit) {
   el.addEventListener('blur', () => finish(true), { once: true });
 }
 function renameStatus(el, id) {
-  const s = S.statuts.find(x => x.id === id); if (!s || !S.statusNameCol) return;
-  inlineEdit(el, s.name, async v => { s.name = v; render(); if (await act([['UpdateRecord', S.statusTable, id, { [S.statusNameCol]: v }]], 'Statut renommé')) refreshStatuts(); });
+  const s = S.etapes.find(x => x.id === id); if (!s || !S.statusNameCol) return;
+  inlineEdit(el, s.name, async v => { s.name = v; render(); if (await act([['UpdateRecord', S.statusTable, id, { [S.statusNameCol]: v }]], 'Étape renommée')) refreshEtapes(); });
 }
 function addStatus() {
   const board = $('board'); board.querySelector('.new-col')?.remove();
@@ -554,11 +554,11 @@ function addStatus() {
   const el = wrap.querySelector('.col-name');
   inlineEdit(el, '', async v => {
     const fields = { [S.statusNameCol]: v };
-    if (S.statusOrderCol) fields[S.statusOrderCol] = (S.statuts.reduce((m, s) => Math.max(m, s.order), 0) || 0) + 1;
-    if (await act([['AddRecord', S.statusTable, null, fields]], 'Statut ajouté')) refreshStatuts();
+    if (S.statusOrderCol) fields[S.statusOrderCol] = (S.etapes.reduce((m, s) => Math.max(m, s.order), 0) || 0) + 1;
+    if (await act([['AddRecord', S.statusTable, null, fields]], 'Étape ajoutée')) refreshEtapes();
   });
 }
-async function refreshStatuts() { try { await loadStatuts(); render(); } catch (e) {} }
+async function refreshEtapes() { try { await loadEtapes(); render(); } catch (e) {} }
 
 /* ---------- Formulaire ---------- */
 let formState = null;   // {row, statusId, inputs: {colId: getter}}
@@ -571,23 +571,23 @@ async function openForm(row, statusId) {
   const form = $('form'); form.innerHTML = '';
   const inputs = {};
   // Libellés des références (pour les listes déroulantes)
-  const refTables = [...new Set(S.cols.filter(c => c.type.startsWith('Ref:') && c.colId !== S.map.Statut).map(c => c.type.slice(4)))];
+  const refTables = [...new Set(S.cols.filter(c => c.type.startsWith('Ref:') && c.colId !== S.map.Etape).map(c => c.type.slice(4)))];
   await Promise.all(refTables.map(t => loadRefLabels(t, (S.cols.find(c => c.type === 'Ref:' + t) || {}).visibleCol).catch(() => {})));
 
   const ordered = [S.colById[S.map.Titre], ...S.cols.filter(c => c.colId !== S.map.Titre)].filter(Boolean);
   for (const c of ordered) {
     if (c.colId === S.map.Ordre) continue;
     const id = 'f_' + c.colId;
-    const val = isNew ? (c.colId === S.map.Statut ? statusValue(statusId) : null) : row[c.colId];
+    const val = isNew ? (c.colId === S.map.Etape ? statusValue(statusId) : null) : row[c.colId];
     const label = document.createElement('label'); label.htmlFor = id; label.textContent = c.label; form.appendChild(label);
     let el, get;
     const t = c.type;
     if (c.isFormula) {
       el = document.createElement('div'); el.className = 'ro'; el.innerHTML = isNew ? '<i>calculé</i>' : (renderValue(c.colId, val, row || {}) || '—');
-    } else if (c.colId === S.map.Statut) {
+    } else if (c.colId === S.map.Etape) {
       el = document.createElement('select'); el.id = id;
       const cur = isNew ? statusId : statusOf(row);
-      el.innerHTML = '<option value="0">— Sans statut —</option>' + S.statuts.map(s => '<option value="' + esc(s.id) + '"' + (s.id === cur ? ' selected' : '') + '>' + esc(s.name) + '</option>').join('');
+      el.innerHTML = '<option value="0">— Sans étape —</option>' + S.etapes.map(s => '<option value="' + esc(s.id) + '"' + (s.id === cur ? ' selected' : '') + '>' + esc(s.name) + '</option>').join('');
       get = () => statusValue(parseStatus(el.value));
     } else if (t === 'Bool') {
       el = document.createElement('input'); el.type = 'checkbox'; el.id = id; el.checked = !!val; el.style.marginTop = '6px'; get = () => el.checked;
@@ -641,9 +641,9 @@ async function saveForm() {
     if (!row && (v == null || v === '' || v === false || (Array.isArray(v) && !v.length))) continue;
     fields[colId] = encodeForWrite(colId, v);
   }
-  // En tri manuel, une tâche créée ou changée de statut va en bas de sa colonne.
-  if (S.map.Ordre && S.sort === 'manuel' && (!row || S.map.Statut in fields)) {
-    const st = S.map.Statut in fields ? statusOf({ [S.map.Statut]: fields[S.map.Statut] }) : formState.statusId;
+  // En tri manuel, une tâche créée ou changée d'étape va en bas de sa colonne.
+  if (S.map.Ordre && S.sort === 'manuel' && (!row || S.map.Etape in fields)) {
+    const st = S.map.Etape in fields ? statusOf({ [S.map.Etape]: fields[S.map.Etape] }) : formState.statusId;
     const max = S.rows.filter(r => statusOf(r) === st && (!row || r.id !== row.id)).reduce((m, r) => Math.max(m, +r[S.map.Ordre] || 0), 0);
     fields[S.map.Ordre] = max + 10;
   }
@@ -684,7 +684,7 @@ function bindToolbar() {
 async function refreshAll() {
   try {
     await loadMeta();
-    await Promise.all([loadStatuts(), loadFullRows()]);
+    await Promise.all([loadEtapes(), loadFullRows()]);
     S.metaLoaded = true;
     const refCols = cardFieldIds().filter(id => /^Ref(List)?:/.test(colType(id)));
     await Promise.all(refCols.map(id => { const c = S.colById[id]; return loadRefLabels(c.type.replace(/^Ref(List)?:/, ''), c.visibleCol).catch(() => {}); }));
@@ -700,7 +700,7 @@ function initGrist() {
     allowSelectBy: true,
     columns: [
       { name: 'Titre', title: 'Titre de la tâche', type: 'Text' },
-      { name: 'Statut', title: 'Statut (Référence vers la table des statuts, ou Choix)', type: 'Any' },
+      { name: 'Etape', title: 'Étape (Référence vers la table des étapes, ou Choix)', type: 'Any' },
       { name: 'Echeance', title: 'Échéance', type: 'Date', optional: true },
       { name: 'Priorite', title: 'Priorité (Choix)', type: 'Choice', optional: true },
       { name: 'Etiquettes', title: 'Étiquettes (Choix multiple)', type: 'ChoiceList', optional: true },
@@ -716,9 +716,9 @@ function initGrist() {
     if (t && t !== S.sort) { S.sort = t; if (S.ready) { renderToolbar(); render(); } }
   });
   grist.onRecords((records, mappings) => {
-    if (!mappings || !mappings.Titre || !mappings.Statut) {
+    if (!mappings || !mappings.Titre || !mappings.Etape) {
       S.ready = false;
-      showMsg('Dans le panneau de droite (onglet <b>Widget</b>), associe au minimum <b>Titre de la tâche</b> et <b>Statut</b>.');
+      showMsg('Dans le panneau de droite (onglet <b>Widget</b>), associe au minimum <b>Titre de la tâche</b> et <b>Étape</b>.');
       return;
     }
     const mapChanged = JSON.stringify(mappings) !== JSON.stringify(S.map);
@@ -726,9 +726,9 @@ function initGrist() {
     scheduleRefresh();
     if (S.metaLoaded && !mapChanged) render();
   }, { includeColumns: 'normal', expandRefs: false });
-  // Les statuts vivent dans une autre table : on les relit régulièrement.
-  setInterval(() => { if (S.ready && !formState && !drag && document.visibilityState === 'visible') refreshStatuts(); }, 15000);
-  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.ready) refreshStatuts(); });
+  // Les étapes vivent dans une autre table : on les relit régulièrement.
+  setInterval(() => { if (S.ready && !formState && !drag && document.visibilityState === 'visible') refreshEtapes(); }, 15000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && S.ready) refreshEtapes(); });
 }
 
 bindBoard(); bindToolbar();

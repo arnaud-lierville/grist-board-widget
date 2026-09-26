@@ -1,8 +1,8 @@
-Titre,Statut,Description,Echeance,Priorite,Etiquettes,Notes,Ordre
-Préparer la réunion du labo,S1 · À faire,Ordre du jour + salle,2026-10-05,Haute,"Labo, Réunion",,
-Relancer le lycée Rotrou,S1 · À faire,Pas de réponse au mail du 15/09,2026-09-28,Normale,Relance,Tél. secrétariat,
-Visite classe de 2nde,S2 · En cours,Observation séance probabilités,2026-10-02,Haute,Visite,,
-Rédiger le compte rendu,S2 · En cours,,2026-09-30,Normale,Rédaction,,
-Commander les ressources,S3 · En attente,En attente du budget,,Basse,Achat,Devis reçu,
-Mettre à jour Grist,S4 · Terminé,Import annuaire fait,2026-09-25,Basse,Admin,,
-Planifier la formation,S1 · À faire,Formation automatismes,2026-10-15,Normale,"Formation, Labo",,
+Titre,Etape,Echeance,Priorite,Description,Etiquettes,Lien,Notes,Ordre
+Rédiger le cahier des charges,Terminé,2026-09-20,Haute,"Objectifs, public cible, pages principales",Rédaction,,,
+Créer les maquettes,En cours,2026-10-03,Haute,"Accueil, produit, contact — version mobile incluse",Design,https://figma.com,,
+Choisir l'hébergeur,À faire,2026-09-30,Moyenne,Comparer prix et support,"Technique, Achat",,Devis OVH reçu,
+Intégrer la page d'accueil,À faire,2026-10-10,Haute,,Technique,https://github.com,,
+Rédiger les mentions légales,En attente,,Basse,En attente de validation juridique,"Rédaction, Juridique",,,
+Préparer l'annonce de lancement,À faire,2026-10-20,Moyenne,Newsletter + réseaux sociaux,Communication,,,
+Configurer les statistiques de visite,À faire,2026-10-15,Basse,Outil respectueux du RGPD,Technique,https://plausible.io,,
