@@ -92,6 +92,7 @@
     <span id="count"></span>
     <label>Tri <select id="sort"></select></label>
     <button id="reset" class="btn hidden" title="Revenir au tri automatique par échéance">Réinitialiser</button>
+    <button id="addStatus" class="btn hidden" title="Ajouter une colonne de statut">+ Statut</button>
     <button id="refresh" class="btn" title="Recharger les statuts et les colonnes">↻</button>
   </div>
   <div id="board"></div>
@@ -127,7 +128,8 @@ const S = {
   tableId: null,
   cols: [], colById: {},          // métadonnées des colonnes de la table des tâches
   map: {},                        // mappings Grist
-  rows: [],                       // tâches
+  rows: [],                       // tâches (onRecords : respecte les filtres de la vue)
+  full: {},                       // id -> ligne complète (toutes les colonnes, via fetchTable)
   statusMode: null,               // 'ref' | 'choice'
   statusTable: null, statusNameCol: null, statusOrderCol: null,
   statuts: [],                    // [{id, name, color, limit, order}]
@@ -270,6 +272,16 @@ function statusOf(row) {
 }
 const doneStatus = () => S.statuts.length ? S.statuts[S.statuts.length - 1].id : null;
 
+/* ---------- Lignes complètes ----------
+   onRecords peut ne renvoyer que les colonnes associées au widget : on relit la table
+   entière pour disposer de toutes les colonnes (Description, Notes…). */
+async function loadFullRows() {
+  const t = await grist.docApi.fetchTable(S.tableId);
+  const full = {}; columnsToRows(t).forEach(r => full[r.id] = r);
+  S.full = full;
+}
+function fullRow(row) { return Object.assign({}, S.full[row.id] || {}, row); }
+
 /* ---------- Tri, filtres ---------- */
 function prioRank(v) {
   const choices = colOpts(S.map.Priorite).choices || [];
@@ -294,7 +306,7 @@ function matches(row) {
   if (f.prio && row[S.map.Priorite] !== f.prio) return false;
   if (f.tag && !listVal(row[S.map.Etiquettes]).includes(f.tag)) return false;
   if (f.q) {
-    const q = f.q.toLowerCase();
+    const q = f.q.toLowerCase(); row = fullRow(row);
     const hay = S.cols.filter(c => c.type === 'Text' || c.type === 'Choice' || c.type === 'ChoiceList')
       .map(c => c.type === 'ChoiceList' ? listVal(row[c.colId]).join(' ') : String(row[c.colId] ?? '')).join(' ').toLowerCase();
     if (!hay.includes(q)) return false;
@@ -324,6 +336,7 @@ function renderValue(colId, v, row) {
   return '<span>' + esc(v) + '</span>';
 }
 function cardHtml(row) {
+  row = fullRow(row);
   const fields = cardFieldIds().map(id => renderValue(id, row[id], row)).filter(Boolean).join('');
   const title = row[S.map.Titre];
   return '<div class="card" draggable="true" data-id="' + row.id + '"><div class="card-title">' + (title ? esc(title) : '<i style="color:var(--muted)">(sans titre)</i>') + '</div>'
@@ -356,8 +369,8 @@ function render() {
       + '<button class="col-add" title="Ajouter une tâche">+</button></div>'
       + '<div class="col-body">' + list.map(cardHtml).join('') + '</div></div>';
   }
-  if (S.statusMode === 'ref') html += '<div class="new-col"><button class="btn" id="addStatus">+ Statut</button></div>';
   board.innerHTML = html;
+  $('addStatus').classList.toggle('hidden', S.statusMode !== 'ref');
   board.querySelectorAll('.col[data-status]').forEach(c => { if (scroll[c.dataset.status]) c.querySelector('.col-body').scrollTop = scroll[c.dataset.status]; });
   board.scrollLeft = bx;
   $('count').textContent = visible.length === S.rows.length ? S.rows.length + ' tâches' : visible.length + ' / ' + S.rows.length + ' tâches';
@@ -472,7 +485,6 @@ function bindBoard() {
     handleDrop(parseStatus(col.dataset.status), index);
   });
   board.addEventListener('click', e => {
-    if (e.target.id === 'addStatus') return addStatus(e.target);
     const add = e.target.closest('.col-add');
     if (add) return openForm(null, parseStatus(add.closest('.col').dataset.status));
     const card = e.target.closest('.card');
@@ -498,8 +510,11 @@ function renameStatus(el, id) {
   const s = S.statuts.find(x => x.id === id); if (!s || !S.statusNameCol) return;
   inlineEdit(el, s.name, async v => { s.name = v; render(); if (await act([['UpdateRecord', S.statusTable, id, { [S.statusNameCol]: v }]], 'Statut renommé')) refreshStatuts(); });
 }
-function addStatus(btn) {
-  const wrap = btn.parentElement; wrap.innerHTML = '<div class="col" style="--col:#8a8f98"><div class="col-head"><span class="col-name"></span></div></div>';
+function addStatus() {
+  const board = $('board'); board.querySelector('.new-col')?.remove();
+  const wrap = document.createElement('div'); wrap.className = 'new-col';
+  wrap.innerHTML = '<div class="col" style="--col:#8a8f98"><div class="col-head"><span class="col-name"></span></div></div>';
+  board.appendChild(wrap); board.scrollLeft = board.scrollWidth;
   const el = wrap.querySelector('.col-name');
   inlineEdit(el, '', async v => {
     const fields = { [S.statusNameCol]: v };
@@ -513,6 +528,7 @@ async function refreshStatuts() { try { await loadStatuts(); render(); } catch (
 let formState = null;   // {row, statusId, inputs: {colId: getter}}
 async function openForm(row, statusId) {
   const isNew = !row;
+  if (row) { try { await loadFullRows(); } catch (e) {} row = fullRow(row); }
   $('dlgTitle').textContent = isNew ? 'Nouvelle tâche' : 'Modifier la tâche';
   $('dlgDelete').classList.toggle('hidden', isNew);
   $('dlgDelete').classList.remove('armed'); $('dlgDelete').textContent = 'Supprimer';
@@ -614,6 +630,7 @@ function bindToolbar() {
   $('fLate').addEventListener('change', e => { S.filters.late = e.target.checked; render(); });
   $('sort').addEventListener('change', e => setSort(e.target.value, true));
   $('reset').addEventListener('click', () => setSort(S.map.Echeance ? 'echeance' : 'titre', true));
+  $('addStatus').addEventListener('click', addStatus);
   $('refresh').addEventListener('click', async () => { await refreshAll(); toast('Rechargé'); });
   $('dlgSave').addEventListener('click', saveForm);
   $('dlgCancel').addEventListener('click', closeForm);
@@ -631,7 +648,7 @@ function bindToolbar() {
 async function refreshAll() {
   try {
     await loadMeta();
-    await loadStatuts();
+    await Promise.all([loadStatuts(), loadFullRows()]);
     S.metaLoaded = true;
     const refCols = cardFieldIds().filter(id => /^Ref(List)?:/.test(colType(id)));
     await Promise.all(refCols.map(id => { const c = S.colById[id]; return loadRefLabels(c.type.replace(/^Ref(List)?:/, ''), c.visibleCol).catch(() => {}); }));
