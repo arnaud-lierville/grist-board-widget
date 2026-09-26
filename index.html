@@ -54,11 +54,23 @@
   .card { background: var(--card); border-radius: 6px; box-shadow: var(--shadow); padding: 7px 9px; margin-bottom: 7px; cursor: pointer; border: 1px solid transparent; }
   .card:hover { border-color: var(--border); }
   .card.dragging { opacity: .4; }
+  .card-top { display: flex; align-items: center; gap: 6px; min-height: 18px; margin-bottom: 3px; color: var(--muted); font-size: 12px; }
+  .card-top .late { color: var(--late); font-weight: 600; }
+  .card-top .prio { margin-left: auto; }
   .card-title { font-weight: 600; word-break: break-word; }
+  .card-desc { margin-top: 3px; color: var(--muted); font-size: 12px; white-space: pre-line; word-break: break-word; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .card-foot { display: flex; align-items: flex-end; gap: 6px; margin-top: 6px; }
+  .card-tags { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; min-width: 0; }
+  .card-link { margin-left: auto; font-size: 12px; color: var(--accent); text-decoration: none; white-space: nowrap; max-width: 50%; overflow: hidden; text-overflow: ellipsis; }
+  .card-link:hover { text-decoration: underline; }
+  .chip.p0 { background: #fde2e2; color: #b42318; } .chip.p1 { background: #fdebd3; color: #b54708; } .chip.p2 { background: #dcf5e7; color: #067647; }
   .card-fields { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 5px; color: var(--muted); font-size: 12px; align-items: center; }
   .card-fields .txt { flex-basis: 100%; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .card-fields .late { color: var(--late); font-weight: 600; }
   .chip { display: inline-block; border-radius: 10px; padding: 1px 7px; font-size: 11px; background: var(--border); color: var(--fg); white-space: nowrap; }
+  @media (prefers-color-scheme: dark) {
+    .chip.p0 { background: #4a2225; color: #ffb4ab; } .chip.p1 { background: #4a3520; color: #fdc98a; } .chip.p2 { background: #1f3f2e; color: #8ee4b4; }
+  }
   .drop-line { height: 3px; background: var(--drop); border-radius: 2px; margin: -2px 0 5px; }
 
   #msg { padding: 20px; color: var(--muted); }
@@ -315,10 +327,22 @@ function matches(row) {
 }
 
 /* ---------- Rendu ---------- */
+// Champs supplémentaires (hors date, priorité, étiquettes, description et lien, qui ont leur place fixe).
 function cardFieldIds() {
+  const fixed = [S.map.Titre, S.map.Echeance, S.map.Priorite, S.map.Etiquettes, S.map.Description, S.map.Lien];
   const m = S.map.Carte;
-  if (Array.isArray(m) && m.length) return m.filter(id => S.colById[id]);
-  return [S.map.Echeance, S.map.Priorite, S.map.Etiquettes].filter(id => id && S.colById[id]);
+  return Array.isArray(m) ? m.filter(id => S.colById[id] && !fixed.includes(id)) : [];
+}
+function prioBadge(v) {
+  if (v == null || v === '') return '';
+  const i = (colOpts(S.map.Priorite).choices || []).indexOf(v);
+  return '<span class="chip prio' + (i >= 0 && i < 3 ? ' p' + i : '') + '" title="' + esc(S.colById[S.map.Priorite].label) + '">' + esc(v) + '</span>';
+}
+function linkHtml(v) {
+  v = String(v ?? '').trim(); if (!v) return '';
+  let u; try { u = new URL(/^[a-z][a-z0-9+.-]*:/i.test(v) ? v : 'https://' + v); } catch (e) { return ''; }
+  if (!/^https?:$/.test(u.protocol)) return '';
+  return '<a class="card-link" href="' + esc(u.href) + '" target="_blank" rel="noopener noreferrer" draggable="false" title="' + esc(u.href) + '">🔗 ' + esc(u.hostname.replace(/^www\./, '')) + '</a>';
 }
 function renderValue(colId, v, row) {
   const t = colType(colId);
@@ -337,10 +361,21 @@ function renderValue(colId, v, row) {
 }
 function cardHtml(row) {
   row = fullRow(row);
+  const has = id => id && S.colById[id];
+  const date = has(S.map.Echeance) ? renderValue(S.map.Echeance, row[S.map.Echeance], row) : '';
+  const prio = has(S.map.Priorite) ? prioBadge(row[S.map.Priorite]) : '';
+  const desc = has(S.map.Description) ? String(row[S.map.Description] ?? '').trim() : '';
+  const tags = has(S.map.Etiquettes) ? renderValue(S.map.Etiquettes, row[S.map.Etiquettes], row) : '';
+  const link = S.map.Lien ? linkHtml(row[S.map.Lien]) : '';
   const fields = cardFieldIds().map(id => renderValue(id, row[id], row)).filter(Boolean).join('');
   const title = row[S.map.Titre];
-  return '<div class="card" draggable="true" data-id="' + row.id + '"><div class="card-title">' + (title ? esc(title) : '<i style="color:var(--muted)">(sans titre)</i>') + '</div>'
-       + (fields ? '<div class="card-fields">' + fields + '</div>' : '') + '</div>';
+  return '<div class="card" draggable="true" data-id="' + row.id + '">'
+       + (date || prio ? '<div class="card-top">' + date + prio + '</div>' : '')
+       + '<div class="card-title">' + (title ? esc(title) : '<i style="color:var(--muted)">(sans titre)</i>') + '</div>'
+       + (desc ? '<div class="card-desc">' + esc(desc) + '</div>' : '')
+       + (fields ? '<div class="card-fields">' + fields + '</div>' : '')
+       + (tags || link ? '<div class="card-foot"><div class="card-tags">' + tags + '</div>' + link + '</div>' : '')
+       + '</div>';
 }
 function columnsForBoard() {
   const cols = S.statuts.map(s => ({ ...s }));
@@ -485,6 +520,7 @@ function bindBoard() {
     handleDrop(parseStatus(col.dataset.status), index);
   });
   board.addEventListener('click', e => {
+    if (e.target.closest('.card-link')) return;
     const add = e.target.closest('.col-add');
     if (add) return openForm(null, parseStatus(add.closest('.col').dataset.status));
     const card = e.target.closest('.card');
@@ -668,8 +704,10 @@ function initGrist() {
       { name: 'Echeance', title: 'Échéance', type: 'Date', optional: true },
       { name: 'Priorite', title: 'Priorité (Choix)', type: 'Choice', optional: true },
       { name: 'Etiquettes', title: 'Étiquettes (Choix multiple)', type: 'ChoiceList', optional: true },
+      { name: 'Description', title: 'Description (Texte)', type: 'Text', optional: true },
+      { name: 'Lien', title: 'Lien (Texte, URL)', type: 'Text', optional: true },
       { name: 'Ordre', title: 'Ordre manuel (Numérique)', type: 'Numeric', optional: true },
-      { name: 'Carte', title: 'Champs affichés sur la carte', allowMultiple: true, optional: true },
+      { name: 'Carte', title: 'Autres champs affichés sur la carte', allowMultiple: true, optional: true },
     ],
   });
   grist.onOptions(opts => {
