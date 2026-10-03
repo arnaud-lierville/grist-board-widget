@@ -150,3 +150,7 @@ Le tri choisi est mémorisé dans la configuration du widget.
 | Nouvelle colonne ou étape absente | Cliquer sur **↻** (les étapes sont aussi relues automatiquement toutes les 15 s). |
 
 Le widget est prévu pour un usage sur ordinateur (pas de glisser-déposer tactile).
+
+## Licence
+
+Distribué sous licence MIT — voir [LICENSE](LICENSE).

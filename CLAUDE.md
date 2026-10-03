@@ -7,6 +7,7 @@ Instance Grist cible : grist.numerique.gouv.fr. Interface et commentaires en fra
 ## Fichiers
 - `index.html` — le widget.
 - `Etapes.csv`, `Taches.csv` — données d'exemple conformes au schéma ci-dessous.
+- `LICENSE` — licence MIT.
 
 ## Schéma Grist recommandé (identifiants sans accents ; libellés libres)
 Table `Taches` : `Titre` (Texte, requis), `Etape` (Référence → `Etapes`, colonne affichée `Nom`, requis),
